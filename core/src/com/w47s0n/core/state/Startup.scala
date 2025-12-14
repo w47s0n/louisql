@@ -24,16 +24,17 @@ case class Startup(
 }
 
 object Startup {
-  case class CreateConnection(nameInput: String, urlInput: String, activeField: Int = 0) {
+  case class ConnectionForm( nameInput: String, urlInput: String, activeField: Int) {
     val fieldCount = 2
-    def cycleField: CreateConnection = copy(activeField = (activeField + 1) % fieldCount)
+    def cycleField: ConnectionForm = copy(activeField = (activeField + 1) % fieldCount)
     def isComplete: Boolean = nameInput.nonEmpty && urlInput.nonEmpty
   }
+  case class CreateConnection(isActive: Boolean, form: ConnectionForm)
   case class Connection(name: String, url: URL)
 
   val empty: Startup = Startup(
     isAtCreateConnection = false,
-    CreateConnection("", "", 0),
+    CreateConnection(isActive = false, ConnectionForm("", "", 0)),
     connections = List(
       Connection("localhost", new URL("http", "localhost", 5432, "mydb")),
       Connection("production", new URL("http", "prod.example.com", 5432, "proddb")),

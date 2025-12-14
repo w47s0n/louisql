@@ -57,7 +57,7 @@ object MsgTranslator {
 
     // Enter: cycle fields if incomplete, add connection if complete
     case ZMsg.Confirm =>
-      if (state.startup.createConnection.isComplete)
+      if (state.startup.createConnection.form.isComplete)
         Some(StartupMsg.AddConnection)
       else
         Some(StartupMsg.CycleCreateConnectionField)

@@ -14,9 +14,9 @@ object CreateConnectionView {
   def apply(state: CreateConnection): Element = {
     layout(
       br,
-      textInput("Name", state.nameInput, placeholder = "Enter connection name", active = state.activeField == 0),
+      textInput("Name", state.form.nameInput, placeholder = "Enter connection name", active = state.form.activeField == 0),
       br,
-      textInput("URL", state.urlInput, placeholder = "postgres://localhost:5432/mydb", active = state.activeField == 1),
+      textInput("URL", state.form.urlInput, placeholder = "postgres://localhost:5432/mydb", active = state.form.activeField == 1),
       br(12),
       renderButtons
     )

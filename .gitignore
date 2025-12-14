@@ -1,0 +1,6 @@
+.bloop
+.metals
+out
+.bsp
+build.sc
+target

@@ -14,17 +14,11 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Setup Java
-      uses: actions/setup-java@v4
+    - name: Install Nix
+      uses: cachix/install-nix-action@v27
       with:
-        distribution: 'temurin'
-        java-version: '17'
-
-    - name: Install Mill
-      run: |
-        curl -L https://github.com/com-lihaoyi/mill/releases/download/1.0.6/1.0.6 -o mill
-        chmod +x mill
-        sudo mv mill /usr/local/bin/mill
+        extra_nix_config: |
+          experimental-features = nix-command flakes
 
     - name: Cache Mill
       uses: actions/cache@v4
@@ -38,7 +32,7 @@ jobs:
           ${{ runner.os }}-mill-
 
     - name: Run tests
-      run: mill __.test
+      run: nix develop --command mill __.test
 
     - name: Compile all modules
-      run: mill __.compile
+      run: nix develop --command mill __.compile

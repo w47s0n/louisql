@@ -28,6 +28,24 @@ The **core** module contains framework-agnostic ELM logic that can be shared acr
 ./run-tui.sh
 ```
 
+### Using Nix (Recommended)
+
+This project uses Nix flakes for reproducible development environments with Mill 1.0.6 and JDK 17.
+
+```bash
+# Enter development shell
+nix develop
+
+# Run the app
+mill -i --disable-ticker app.runLocal
+
+# Run tests
+mill __.test
+
+# Compile all modules
+mill __.compile
+```
+
 ### Manual Run
 
 For interactive terminal applications with keyboard input, use `runLocal` instead of `run`:

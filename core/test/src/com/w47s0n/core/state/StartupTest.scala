@@ -15,18 +15,18 @@ class StartupTest extends AnyFlatSpec with Matchers {
   }
 
   "CreateConnection" should "cycle between fields" in {
-    val cc = Startup.CreateConnection("test", "url", activeField = 0)
-
-    cc.activeField shouldBe 0
-    cc.cycleField.activeField shouldBe 1
-    cc.cycleField.cycleField.activeField shouldBe 0
+    val cc = Startup.CreateConnection("test", "url")
+    val form = cc.form
+    form.activeField shouldBe 0
+    form.cycleField.activeField shouldBe 1
+    form.cycleField.cycleField.activeField shouldBe 0
   }
 
   it should "check if form is complete" in {
-    val incomplete = Startup.CreateConnection("", "", 0)
+    val incomplete = Startup.CreateConnection("", "").form
     incomplete.isComplete shouldBe false
 
-    val complete = Startup.CreateConnection("name", "url", 0)
+    val complete = Startup.CreateConnection("name", "url").form
     complete.isComplete shouldBe true
   }
 

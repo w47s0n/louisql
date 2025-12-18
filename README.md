@@ -1,4 +1,16 @@
 # ScalaSQL
+```scala
+                                     ░██                                  ░██ 
+                                     ░██                                  ░██ 
+     ░███████   ░███████   ░██████   ░██  ░██████    ░███████   ░████████ ░██ 
+    ░██        ░██    ░██       ░██  ░██       ░██  ░██        ░██    ░██ ░██ 
+     ░███████  ░██         ░███████  ░██  ░███████   ░███████  ░██    ░██ ░██ 
+           ░██ ░██    ░██ ░██   ░██  ░██ ░██   ░██         ░██ ░██   ░███ ░██ 
+     ░███████   ░███████   ░█████░██ ░██  ░█████░██  ░███████   ░█████░██ ░██ 
+                                                                      ░██     
+                                                                      ░██     
+```
+
 
 Interactive database client built with [layoutz](https://github.com/mattlianje/layoutz) - a library for creating beautiful terminal UIs in Scala.
 

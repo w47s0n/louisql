@@ -4,6 +4,7 @@ import com.w47s0n.core.state.State
 import com.w47s0n.core.message.Msg
 import com.w47s0n.core.message.Startup as StartupMsg
 import StartupMsg.QuitApp
+import com.w47s0n.core.state.Startup.ConnectionForm.Database
 
 // ========== MsgTranslator ==========
 // Translates ZMsg (TUI-specific) to core Msg (business logic) based on current state
@@ -14,6 +15,7 @@ object MsgTranslator {
 
   def translate(zMsg: ZMsg, state: State): Option[Msg] = {
     if (state.startup.isAtCreateConnection) {
+      //handle differently, because this case includes typing handling
       translateCreateConnection(zMsg, state)
     } else {
       translateStartup(zMsg, state)
@@ -25,15 +27,15 @@ object MsgTranslator {
 
   private def translateStartup(zMsg: ZMsg, state: State): Option[Msg] = zMsg match {
     // Hotkeys for menu actions (case-insensitive)
-    case ZMsg.Hotkey(c) if c.toLower == 'n' => Some(StartupMsg.EnterCreateConnection)
-    case ZMsg.Hotkey(c) if c.toLower == 'c' => None // TODO: Connect to selected connection
-    case ZMsg.Hotkey(c) if c.toLower == 'e' => None // TODO: Edit selected connection (needs index)
-    case ZMsg.Hotkey(c) if c.toLower == 'd' => None // TODO: Delete selected connection (needs index)
-    case ZMsg.Quit                          => Some(QuitApp)
+    case ZMsg.CharInput(c) if c.toLower == 'n' => Some(StartupMsg.EnterCreateConnection)
+    case ZMsg.CharInput(c) if c.toLower == 'c' => None // TODO: Connect to selected connection
+    case ZMsg.CharInput(c) if c.toLower == 'e' => None // TODO: Edit selected connection (needs index)
+    case ZMsg.CharInput(c) if c.toLower == 'd' => None // TODO: Delete selected connection (needs index)
+    case ZMsg.CharInput(c) if c.toLower == 'q' => Some(QuitApp)
 
     // Vim-style navigation: j=down, k=up (case-insensitive)
-    case ZMsg.Hotkey(c) if c.toLower == 'j' => Some(StartupMsg.SelectNextConnection)
-    case ZMsg.Hotkey(c) if c.toLower == 'k' => Some(StartupMsg.SelectPrevConnection)
+    case ZMsg.CharInput(c) if c.toLower == 'j' => Some(StartupMsg.SelectNextConnection)
+    case ZMsg.CharInput(c) if c.toLower == 'k' => Some(StartupMsg.SelectPrevConnection)
 
     // Arrow key navigation
     case ZMsg.NavUp   => Some(StartupMsg.SelectPrevConnection)
@@ -51,24 +53,37 @@ object MsgTranslator {
   // ========== Create Connection Screen ==========
   // Text input mode for name/URL fields
 
+  private def navigateDatabase(state: State, isUp: Boolean): Option[Msg] = {
+    val currentIndex = state.startup.createConnection.form.db.ordinal
+    val newIndex = if (isUp) Math.max(0, currentIndex - 1) else Math.min(Database.values.size - 1, currentIndex + 1)
+    Some(StartupMsg.SelectDBMS(Database.fromOrdinal(newIndex)))
+  }
+
   private def translateCreateConnection(zMsg: ZMsg, state: State): Option[Msg] = zMsg match {
-    // Cancel (Esc) returns to startup
-    case ZMsg.Cancel => Some(StartupMsg.CancelCreateConnection)
+    case ZMsg.Confirm => Some(StartupMsg.GoToNextField)
 
-    // Enter: cycle fields if incomplete, add connection if complete
-    case ZMsg.Confirm =>
-      if (state.startup.createConnection.form.isComplete)
-        Some(StartupMsg.AddConnection)
-      else
-        Some(StartupMsg.CycleCreateConnectionField)
+    case ZMsg.NavUp if state.startup.createConnection.form.isSelectingDb =>
+      navigateDatabase(state, isUp = true)
 
-    // Text input - Hotkey chars become text input in this context
-    case ZMsg.Hotkey(c)    => Some(StartupMsg.CreateConnectionCharInput(c))
-    case ZMsg.TextInput(c) => Some(StartupMsg.CreateConnectionCharInput(c))
+    case ZMsg.NavDown if state.startup.createConnection.form.isSelectingDb =>
+      navigateDatabase(state, isUp = false)
+
+    case ZMsg.VimKey(nav) if state.startup.createConnection.form.isSelectingDb =>
+      navigateDatabase(state, isUp = nav == ZMsg.NavUp)
+
+    case ZMsg.CharInput(c) =>
+      val activeValue = state.startup.createConnection.form.activeFieldValue
+      Some(StartupMsg.UpdateTextField(activeValue :+ c))
+
     case ZMsg.Backspace    => Some(StartupMsg.CreateConnectionBackspace)
 
-    // Quit still works
-    case ZMsg.Quit => Some(QuitApp)
+    // Form actions
+    case ZMsg.Save    => Some(StartupMsg.SaveConnection)
+    case ZMsg.Test    => Some(StartupMsg.TestConnection)
+    case ZMsg.Connect => Some(StartupMsg.ConnectConnection)
+
+    // Cancel (Esc) - return to main screen
+    case ZMsg.Cancel => Some(StartupMsg.CancelCreateConnection)
 
     case _ => None
   }

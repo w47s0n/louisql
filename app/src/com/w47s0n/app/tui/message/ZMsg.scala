@@ -13,18 +13,27 @@ object ZMsg {
   case object NavLeft extends ZMsg
   case object NavRight extends ZMsg
 
+  object VimKey {
+    def unapply(msg: ZMsg): Option[NavUp.type | NavDown.type] = msg match {
+      case CharInput('j') => Some(NavDown)
+      case CharInput('k') => Some(NavUp)
+      case _ => None
+    }
+  }
+
   // Actions
   case object Confirm extends ZMsg
   case object Cancel extends ZMsg
   case object Delete extends ZMsg
 
-  // Text input
-  case class TextInput(char: Char) extends ZMsg
+  case class CharInput(char: Char) extends ZMsg // this can be converted to HostKey/typing
   case object Backspace extends ZMsg
 
   // Hotkeys (direct action shortcuts)
-  case class Hotkey(char: Char) extends ZMsg
+  // case class Hotkey(char: Char) extends ZMsg
 
   // Application
-  case object Quit extends ZMsg
+  case object Save extends ZMsg
+  case object Test extends ZMsg
+  case object Connect extends ZMsg
 }

@@ -1,7 +1,7 @@
 package com.w47s0n.app.tui.view
 
 import layoutz._
-import com.w47s0n.core.state.Startup
+import com.w47s0n.core.state.{ConnectionUrl, Startup}
 
 object StartupView {
 
@@ -68,7 +68,7 @@ object StartupView {
       val connectionItems = state.connections.zipWithIndex.map { case (conn, idx) =>
         val isSelected = idx == state.selectedIndex
         val prefix = if (isSelected) "  > " else "    "
-        val displayText = s"$prefix${conn.name} (${conn.url.getHost}:${conn.url.getPort})"
+        val displayText = s"$prefix${conn.name} (${conn.url.value})"
 
         if (isSelected) {
           displayText.color(Colors.ConnectionSelected)

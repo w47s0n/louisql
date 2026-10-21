@@ -6,7 +6,7 @@ import com.w47s0n.core.message.Startup
 import com.w47s0n.core.message.Startup.*
 import com.w47s0n.core.service.ConnectionTester
 import com.w47s0n.core.state.{ConnectionUrl, State}
-import com.w47s0n.core.state.Startup.{Connection, ValidationError}
+import com.w47s0n.core.state.Startup.{Connection, CreateConnection, ValidationError}
 import com.w47s0n.core.state.Startup.ConnectionForm
 
 // ========== Update Logic (ELM Update) ==========
@@ -35,10 +35,20 @@ object Update {
     val updatedState = state
       .modify(_.startup.isAtCreateConnection)
       .setTo(false)
-      .modify(_.startup.createConnection.form)
-      .setTo(ConnectionForm.empty)
+      .modify(_.startup.createConnection)
+      .setTo(CreateConnection.empty)
     UpdateResult(updatedState, noCmd)
   }
+
+  private def editConnection[Cmd](state: State, noCmd: Cmd): UpdateResult[Cmd] =
+    state.startup.selectedConnection.fold(UpdateResult(state, noCmd)) { conn =>
+      val updatedState = state
+        .modify(_.startup.isAtCreateConnection)
+        .setTo(true)
+        .modify(_.startup.createConnection)
+        .setTo(CreateConnection(isActive = false, ConnectionForm.fromConnection(conn), Some(state.startup.selectedIndex)))
+      UpdateResult(updatedState, noCmd)
+    }
 
   // Required-field checks shared by Save/Test/Connect; keeps any existing port error
   private def validate(form: ConnectionForm): Option[ValidationError] = {
@@ -62,11 +72,11 @@ object Update {
         val newConnection = Connection(form.connectionName, ConnectionUrl.fromForm(form))
         val updatedState  = state
           .modify(_.startup.connections)
-          .using(_ :+ newConnection)
+          .using(cs => state.startup.createConnection.editingIndex.fold(cs :+ newConnection)(cs.updated(_, newConnection)))
           .modify(_.startup.isAtCreateConnection)
           .setTo(false)
-          .modify(_.startup.createConnection.form)
-          .setTo(ConnectionForm.empty)
+          .modify(_.startup.createConnection)
+          .setTo(CreateConnection.empty)
         UpdateResult(updatedState, noCmd)
     }
   }
@@ -84,11 +94,14 @@ object Update {
     }
   }
 
-  // Save, then select the new connection. No query screen exists yet, so connecting stops here.
+  // Save, then select the saved connection. No query screen exists yet, so connecting stops here.
   private def connectConnection[Cmd](state: State, noCmd: Cmd): UpdateResult[Cmd] = {
     val saved = saveConnection(state, noCmd)
     if (saved.state.startup.isAtCreateConnection) saved // validation failed
-    else saved.copy(state = saved.state.modify(_.startup.selectedIndex).setTo(saved.state.startup.connections.size - 1))
+    else {
+      val index = state.startup.createConnection.editingIndex.getOrElse(saved.state.startup.connections.size - 1)
+      saved.copy(state = saved.state.modify(_.startup.selectedIndex).setTo(index))
+    }
   }
 
   private def handleBackspace[Cmd](state: State, noCmd: Cmd): UpdateResult[Cmd] = {
@@ -129,8 +142,8 @@ object Update {
         case ConnectConnection         => connectConnection(state, noCmd)
         case msg: CreateConnectionForm => createConnectionFormHandle(state, msg, noCmd)
         case CreateConnectionBackspace => handleBackspace(state, noCmd)
-        case EditConnection(index)     => ???
-        case DeleteConnection(index)   => ???
+        case EditConnection            => editConnection(state, noCmd)
+        case DeleteConnection          => UpdateResult(state.modify(_.startup).using(_.deleteSelected), noCmd)
         case SelectNextConnection      => UpdateResult(state.modify(_.startup).using(_.selectNext), noCmd)
         case SelectPrevConnection      => UpdateResult(state.modify(_.startup).using(_.selectPrev), noCmd)
         case QuitApp                   => UpdateResult(state, noCmd) // Handled by layoutz layer

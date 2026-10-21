@@ -56,4 +56,32 @@ class StartupTest extends AnyFlatSpec with Matchers {
 
     prev.selectedIndex shouldBe 2
   }
+
+  it should "delete the selected connection and keep the index" in {
+    val deleted = Startup.empty.copy(selectedIndex = 1).deleteSelected
+
+    deleted.connections.map(_.name) shouldBe List("localhost", "staging")
+    deleted.selectedIndex shouldBe 1
+  }
+
+  it should "clamp the index when deleting the last connection" in {
+    val deleted = Startup.empty.copy(selectedIndex = 2).deleteSelected
+
+    deleted.connections.map(_.name) shouldBe List("localhost", "production")
+    deleted.selectedIndex shouldBe 1
+  }
+
+  it should "reset the index to 0 when deleting the only connection" in {
+    val single  = Startup.empty.copy(connections = Startup.empty.connections.take(1))
+    val deleted = single.deleteSelected
+
+    deleted.connections shouldBe empty
+    deleted.selectedIndex shouldBe 0
+  }
+
+  it should "do nothing when deleting from an empty list" in {
+    val noConnections = Startup.empty.copy(connections = Nil)
+
+    noConnections.deleteSelected shouldBe noConnections
+  }
 }

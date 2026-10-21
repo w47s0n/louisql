@@ -170,4 +170,57 @@ class CreateConnectionTest extends AnyFlatSpec with Matchers {
     finalState.startup.createConnection.form shouldBe Startup.ConnectionForm.empty
     finalState.startup.connections shouldBe State.empty.startup.connections
   }
+
+  "ConnectionForm.fromConnection" should "fill the form from a connection URL" in {
+    val conn = Startup.Connection("dev", ConnectionUrl("mysql://bob:s3:cret@db.local:3310/app"))
+    val form = Startup.ConnectionForm.fromConnection(conn)
+    form.connectionName shouldBe "dev"
+    form.db shouldBe Startup.ConnectionForm.Database.Mysql
+    form.host shouldBe "db.local"
+    form.port shouldBe 3310
+    form.auth shouldBe Some(Startup.Authentication("bob", "s3:cret"))
+  }
+
+  it should "fall back to a name-only form for an unparseable URL" in {
+    val form = Startup.ConnectionForm.fromConnection(Startup.Connection("bad", ConnectionUrl("not a url")))
+    form shouldBe Startup.ConnectionForm.empty.copy(connectionName = "bad")
+  }
+
+  "EditConnection" should "open the form prefilled from the selected connection" in {
+    val state = Update.update(com.w47s0n.core.message.Startup.EditConnection, State.empty, None).state
+    state.startup.isAtCreateConnection shouldBe true
+    state.startup.createConnection.editingIndex shouldBe Some(0)
+    state.startup.createConnection.form.connectionName shouldBe "localhost"
+    state.startup.createConnection.form.host shouldBe "localhost"
+    state.startup.createConnection.form.port shouldBe 5432
+  }
+
+  it should "do nothing when there are no connections" in {
+    val noConnections = State.empty.copy(startup = State.empty.startup.copy(connections = Nil))
+    Update.update(com.w47s0n.core.message.Startup.EditConnection, noConnections, None).state shouldBe noConnections
+  }
+
+  it should "replace the connection in place on save instead of appending" in {
+    val selected = State.empty.copy(startup = State.empty.startup.copy(selectedIndex = 1))
+    val editing  = Update.update(com.w47s0n.core.message.Startup.EditConnection, selected, None).state
+    val renamed  = editing.copy(startup = editing.startup.copy(createConnection =
+      editing.startup.createConnection.copy(form = editing.startup.createConnection.form.copy(connectionName = "prod"))))
+    val saved = Update.update(com.w47s0n.core.message.Startup.SaveConnection, renamed, None).state
+    saved.startup.connections.map(_.name) shouldBe List("localhost", "prod", "staging")
+    saved.startup.createConnection shouldBe Startup.CreateConnection.empty
+  }
+
+  it should "keep the edited connection selected on ConnectConnection" in {
+    val selected = State.empty.copy(startup = State.empty.startup.copy(selectedIndex = 1))
+    val editing  = Update.update(com.w47s0n.core.message.Startup.EditConnection, selected, None).state
+    val finalState = Update.update(com.w47s0n.core.message.Startup.ConnectConnection, editing, None).state
+    finalState.startup.connections.size shouldBe 3
+    finalState.startup.selectedIndex shouldBe 1
+  }
+
+  it should "clear the editing index on cancel" in {
+    val editing = Update.update(com.w47s0n.core.message.Startup.EditConnection, State.empty, None).state
+    val cancelled = Update.update(com.w47s0n.core.message.Startup.CancelCreateConnection, editing, None).state
+    cancelled.startup.createConnection.editingIndex shouldBe None
+  }
 }

@@ -29,8 +29,8 @@ object MsgTranslator {
     // Hotkeys for menu actions (case-insensitive)
     case ZMsg.CharInput(c) if c.toLower == 'n' => Some(StartupMsg.EnterCreateConnection)
     case ZMsg.CharInput(c) if c.toLower == 'c' => None // TODO: Connect to selected connection
-    case ZMsg.CharInput(c) if c.toLower == 'e' => None // TODO: Edit selected connection (needs index)
-    case ZMsg.CharInput(c) if c.toLower == 'd' => None // TODO: Delete selected connection (needs index)
+    case ZMsg.CharInput(c) if c.toLower == 'e' => Some(StartupMsg.EditConnection)
+    case ZMsg.CharInput(c) if c.toLower == 'd' => Some(StartupMsg.DeleteConnection)
     case ZMsg.CharInput(c) if c.toLower == 'q' => Some(QuitApp)
 
     // Vim-style navigation: j=down, k=up (case-insensitive)

@@ -24,8 +24,8 @@ object Startup {
   case class SelectDBMS(db: Database) extends CreateConnectionForm
 
   case object CreateConnectionBackspace extends Startup
-  case class EditConnection(index: Int) extends Startup
-  case class DeleteConnection(index: Int) extends Startup
+  case object EditConnection extends Startup
+  case object DeleteConnection extends Startup
   case object SelectNextConnection extends Startup
   case object SelectPrevConnection extends Startup
   case object QuitApp extends Startup

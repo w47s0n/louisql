@@ -1,6 +1,8 @@
 package com.w47s0n.core.state
 
 import com.softwaremill.quicklens.*
+import java.net.URI
+import scala.util.Try
 import com.w47s0n.core.state.Startup.Authentication
 import com.w47s0n.core.state.Startup.Connection
 import com.w47s0n.core.state.Startup.ConnectionForm.Database
@@ -37,6 +39,11 @@ case class Startup(
   def selectPrev: Startup =
     if (connections.isEmpty) this
     else copy(selectedIndex = (selectedIndex - 1 + connections.size) % connections.size)
+
+  def deleteSelected: Startup = {
+    val remaining = connections.patch(selectedIndex, Nil, 1)
+    copy(connections = remaining, selectedIndex = selectedIndex.min((remaining.size - 1).max(0)))
+  }
 }
 
 object Startup {
@@ -45,6 +52,20 @@ object Startup {
     def apply(db: Database): ConnectionForm = {
       ConnectionForm("", db, "", db.defaultPort, Some(Authentication("", "")), 0, None)
     }
+
+    // Inverse of Database.makeUrl; falls back to a name-only form if the URL doesn't parse
+    def fromConnection(c: Connection): ConnectionForm =
+      Try(URI(c.url.value)).toOption
+        .flatMap(uri => Database.values.find(_.protocol == uri.getScheme).map(uri -> _))
+        .fold(empty.copy(connectionName = c.name)) { case (uri, db) =>
+          ConnectionForm(db).copy(
+            connectionName = c.name,
+            host = Option(uri.getHost).getOrElse(""),
+            port = if (uri.getPort == -1) db.defaultPort else uri.getPort,
+            auth = Option(uri.getUserInfo).map(_.split(":", 2)).map(p => Authentication(p(0), p.lift(1).getOrElse(""))),
+          )
+        }
+
     enum Database(val protocol: String, val defaultPort: Int) {
       def makeUrl(host: String, port: Int, name: String, auth: Option[Authentication]): String = auth
         .map(auth => s"$protocol://${auth.user}:${auth.password}@$host:$port/$name")
@@ -92,7 +113,7 @@ object Startup {
       this.modify(_.activeField).using(current => (current + 1) % totalFields)
     }
   }
-  case class CreateConnection(isActive: Boolean, form: ConnectionForm)
+  case class CreateConnection(isActive: Boolean, form: ConnectionForm, editingIndex: Option[Int] = None)
   object CreateConnection {
     val empty: CreateConnection                            = CreateConnection("", "")
     def apply(name: String, url: String): CreateConnection =

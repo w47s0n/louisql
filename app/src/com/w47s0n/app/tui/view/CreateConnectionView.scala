@@ -1,55 +1,63 @@
 package com.w47s0n.app.tui.view
 
 import layoutz._
-import layoutz.Element
-import com.w47s0n.core.state.Startup.CreateConnection
-import com.w47s0n.core.state.Startup.ConnectionForm
+import com.w47s0n.core.state.Startup
+import com.w47s0n.core.state.Startup.ConnectionForm.Database
+import Theme._
 
 object CreateConnectionView {
 
-  private object Colors {
-    val Hotkey = Color.BrightYellow
-    val Button = Color.White
-    val Error  = Color.Red
-    val Info   = Color.Green
-  }
+  private val LabelWidth = 14
 
-  private def error(msg: Option[String]): Element =
-    msg.fold(br)(m => s"  $m".color(Colors.Error))
+  def apply(state: Startup): Element = {
+    val form   = state.createConnection.form
+    val errors = form.errors
+    val title  = state.createConnection.editingIndex
+      .flatMap(state.connections.lift)
+      .fold("New connection")(c => s"Edit connection · ${c.name}")
 
-  def apply(state: CreateConnection): Element = {
-    val db     = state.form.db
-    val errors = state.form.errors
     layout(
-      br,
-      textInput("Name", state.form.connectionName, placeholder = "Enter connection name", active = state.form.activeField == 0),
-      error(errors.flatMap(_.name)),
-      singleChoice("DBMS", ConnectionForm.Database.values.map(_.toString), db.ordinal, state.form.activeField == 1),
-      br,
-      textInput("host", state.form.host, placeholder = "localhost", active = state.form.activeField == 2),
-      error(errors.flatMap(_.host)),
-      textInput("port", state.form.port.toString, placeholder = db.defaultPort.toString, active = state.form.activeField == 3),
-      error(errors.flatMap(_.port)),
-      state.form.testResult.fold(br)(r => s"  $r".color(Colors.Info)),
-      br(10),
-      buttons
+      header(title),
+      field("Name", form.connectionName, "Enter connection name", form.activeField == 0),
+      message(errors.flatMap(_.name), Danger),
+      engine(form.db, form.isSelectingDb),
+      message(None, Danger),
+      field("Host", form.host, "localhost", form.activeField == 2),
+      message(errors.flatMap(_.host), Danger),
+      field("Port", form.port.toString, form.db.defaultPort.toString, form.activeField == 3),
+      message(errors.flatMap(_.port), Danger),
+      message(form.testResult, if (form.testResult.exists(_.startsWith("Failed"))) Danger else Ok),
+      statusBar(
+        left = Nil,
+        hints = Seq("Tab" -> "Next", "↑↓" -> "Engine", "^T" -> "Test", "^O" -> "Connect", "Esc" -> "Cancel"),
+        primary = Some("Save" -> "^S"),
+      ),
     )
   }
 
-  private val buttons: Element = {
-    val buttons = List(
-      ("^S", "Save"),
-      ("^T", "Test"),
-      ("^O", "Connect"),
-      ("Esc", "Cancel")
-    )
+  private def label(name: String, active: Boolean): Seg =
+    if (active) Seg(fit(s"▌ $name", LabelWidth), Accent) else Seg(fit(s"  $name", LabelWidth), Muted)
 
-    val buttonElements = buttons.map { case (hotkey, label) =>
-      val hotkeyText = hotkey.color(Colors.Hotkey)
-      val labelText = s" $label".color(Colors.Button)
-      box("")(row(hotkeyText, labelText)).border(Border.Round)
+  // Active row is painted like ghostty's highlighted setting; empty values show their placeholder
+  private def field(name: String, value: String, placeholder: String, active: Boolean): Element = {
+    val cursor = if (active) Seq(Seg("▏", Accent)) else Nil
+    val shown  = if (value.isEmpty) cursor :+ Seg(placeholder, Muted) else Seg(value) +: cursor
+    line(label(name, active) +: shown, Option.when(active)(SelBg))
+  }
+
+  // DBMS choice as pills: the chosen one is filled, accent when the row is active
+  private def engine(db: Database, active: Boolean): Element = {
+    val pills = Database.values.toSeq.flatMap { d =>
+      val text = s" ${d.toString.toLowerCase} "
+      val pill =
+        if (d != db) Seg(text, Muted)
+        else if (active) Seg(text, Ink, Some(Accent), bold = true)
+        else Seg(text, Fg, Some(KeyBg))
+      Seq(pill, Seg(" "))
     }
-
-    row(buttonElements*)
+    line(label("Engine", active) +: pills, Option.when(active)(SelBg))
   }
+
+  private def message(text: Option[String], color: Color.True): Element =
+    line(text.toSeq.map(t => Seg(" " * LabelWidth + t, color)))
 }

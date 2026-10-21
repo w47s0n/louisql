@@ -1,5 +1,6 @@
 import mill._
 import mill.scalalib._
+import mill.scalanativelib._
 
 trait CommonModule extends ScalaModule {
   def scalaVersion = "3.9.0"
@@ -28,7 +29,7 @@ object app extends CommonModule {
   def moduleDeps = Seq(core)
 
   def mvnDeps = Seq(
-    mvn"xyz.matthieucourt::layoutz:0.8.0"
+    mvn"xyz.matthieucourt::layoutz::0.8.0"
   )
 
   object test extends ScalaTests with TestModule.ScalaTest {
@@ -36,4 +37,13 @@ object app extends CommonModule {
       mvn"org.scalatest::scalatest::3.2.20"
     )
   }
+}
+
+// Native binary of the TUI: core + app sources compiled with Scala Native, no JVM needed.
+// Build with `mill native.nativeLink`; the binary lands in out/native/nativeLink.dest/out
+object native extends CommonModule with ScalaNativeModule {
+  def scalaNativeVersion = "0.5.12"
+  def sources            = Task { core.sources() ++ app.sources() }
+  def mvnDeps            = Task { core.mvnDeps() ++ app.mvnDeps() }
+  def mainClass          = Some("com.w47s0n.app.tui.Main")
 }

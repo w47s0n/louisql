@@ -20,5 +20,6 @@ jobs:
         with:
           github-token: ${{ secrets.SCALA_STEWARD_TOKEN }}
           author-email: dinh@w47s0n.com
+          author-name: Scala Steward
           # Optional: sign commits with GPG
           # signing-key: ${{ secrets.GPG_SIGNING_KEY }}

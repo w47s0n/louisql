@@ -29,7 +29,8 @@ object app extends CommonModule {
   def moduleDeps = Seq(core)
 
   def mvnDeps = Seq(
-    mvn"xyz.matthieucourt::layoutz::0.8.0"
+    mvn"xyz.matthieucourt::layoutz::0.8.0",
+    mvn"io.github.takapi327::ldbc-connector::0.8.0"
   )
 
   object test extends ScalaTests with TestModule.ScalaTest {

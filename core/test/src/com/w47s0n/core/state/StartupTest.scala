@@ -5,12 +5,12 @@ import org.scalatest.matchers.should.Matchers
 
 class StartupTest extends AnyFlatSpec with Matchers {
 
-  "Startup.empty" should "have default values" in {
+  "Startup.empty" should "start with no connections until they are loaded from disk" in {
     val startup = Startup.empty
 
     startup.isAtCreateConnection shouldBe false
     startup.selectedIndex shouldBe 0
-    startup.connections should not be empty
+    startup.connections shouldBe empty
   }
 
   "CreateConnection" should "cycle between fields and update error message" in {
@@ -30,49 +30,49 @@ class StartupTest extends AnyFlatSpec with Matchers {
   // }
 
   "Startup" should "select next connection" in {
-    val startup = Startup.empty
+    val startup = Fixtures.startup
     val next    = startup.selectNext
 
     next.selectedIndex shouldBe 1
   }
 
   it should "wrap around when selecting next at end" in {
-    val startup = Startup.empty.copy(selectedIndex = 2)
+    val startup = Fixtures.startup.copy(selectedIndex = 2)
     val next    = startup.selectNext
 
     next.selectedIndex shouldBe 0
   }
 
   it should "select previous connection" in {
-    val startup = Startup.empty.copy(selectedIndex = 1)
+    val startup = Fixtures.startup.copy(selectedIndex = 1)
     val prev    = startup.selectPrev
 
     prev.selectedIndex shouldBe 0
   }
 
   it should "wrap around when selecting previous at start" in {
-    val startup = Startup.empty.copy(selectedIndex = 0)
+    val startup = Fixtures.startup.copy(selectedIndex = 0)
     val prev    = startup.selectPrev
 
     prev.selectedIndex shouldBe 2
   }
 
   it should "delete the selected connection and keep the index" in {
-    val deleted = Startup.empty.copy(selectedIndex = 1).deleteSelected
+    val deleted = Fixtures.startup.copy(selectedIndex = 1).deleteSelected
 
     deleted.connections.map(_.name) shouldBe List("localhost", "staging")
     deleted.selectedIndex shouldBe 1
   }
 
   it should "clamp the index when deleting the last connection" in {
-    val deleted = Startup.empty.copy(selectedIndex = 2).deleteSelected
+    val deleted = Fixtures.startup.copy(selectedIndex = 2).deleteSelected
 
     deleted.connections.map(_.name) shouldBe List("localhost", "production")
     deleted.selectedIndex shouldBe 1
   }
 
   it should "reset the index to 0 when deleting the only connection" in {
-    val single  = Startup.empty.copy(connections = Startup.empty.connections.take(1))
+    val single  = Fixtures.startup.copy(connections = Fixtures.startup.connections.take(1))
     val deleted = single.deleteSelected
 
     deleted.connections shouldBe empty
@@ -80,7 +80,7 @@ class StartupTest extends AnyFlatSpec with Matchers {
   }
 
   it should "do nothing when deleting from an empty list" in {
-    val noConnections = Startup.empty.copy(connections = Nil)
+    val noConnections = Fixtures.startup.copy(connections = Nil)
 
     noConnections.deleteSelected shouldBe noConnections
   }

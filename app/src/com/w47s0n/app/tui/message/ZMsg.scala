@@ -36,4 +36,12 @@ object ZMsg {
   case object Save extends ZMsg
   case object Test extends ZMsg
   case object Connect extends ZMsg
+  case object Run extends ZMsg
+
+  // Navigation beyond the arrows
+  case object Tab extends ZMsg
+  case object Home extends ZMsg
+  case object End extends ZMsg
+  case object PageUp extends ZMsg
+  case object PageDown extends ZMsg
 }

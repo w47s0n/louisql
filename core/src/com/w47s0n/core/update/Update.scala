@@ -1,54 +1,33 @@
 package com.w47s0n.core.update
 
 import com.softwaremill.quicklens._
-import com.w47s0n.core.message.Msg
-import com.w47s0n.core.message.Startup
+import com.w47s0n.core.effect.{Effect, Purpose}
+import com.w47s0n.core.message.{Msg, Startup, WorkspaceMsg}
 import com.w47s0n.core.message.Startup.*
-import com.w47s0n.core.service.ConnectionTester
+import com.w47s0n.core.service.ConnectionStore
 import com.w47s0n.core.state.{ConnectionUrl, State}
-import com.w47s0n.core.state.Startup.{Connection, CreateConnection, ValidationError}
+import com.w47s0n.core.state.Startup.{Authentication, Connection, CreateConnection, ValidationError}
 import com.w47s0n.core.state.Startup.ConnectionForm
 
 // ========== Update Logic (ELM Update) ==========
-// Pure functions that handle state transitions
-// No UI dependencies - can be used by any ELM-based frontend
+// Pure functions that handle state transitions. Side effects are returned as
+// Effect values for the frontend to run; their answers come back as Msgs.
 
 object Update {
 
-  // Result type for update functions
-  // The Cmd type parameter allows different frontends to use their own command types
-  case class UpdateResult[Cmd](state: State, cmd: Cmd)
+  case class UpdateResult(state: State, effects: List[Effect] = Nil)
 
-  private def handleMenuSelect[Cmd](state: State, noCmd: Cmd): UpdateResult[Cmd] =
-    // TODO: Handle menu selection based on selectedMenuIndex
-    // 0 = New, 1 = Connect, 2 = Edit, 3 = Delete, 4 = Quit
-    UpdateResult(state, noCmd)
+  private def showCreateNewConnectionScreen(state: State): UpdateResult =
+    UpdateResult(state.modify(_.startup.isAtCreateConnection).setTo(true))
 
-  private def showCreateNewConnectionScreen[Cmd](state: State, noCmd: Cmd): UpdateResult[Cmd] = {
-    val updatedState = state
-      .modify(_.startup.isAtCreateConnection)
-      .setTo(true)
-    UpdateResult(updatedState, noCmd)
-  }
-
-  private def cancelCreateConnection[Cmd](state: State, noCmd: Cmd): UpdateResult[Cmd] = {
+  private def cancelCreateConnection(state: State): UpdateResult = {
     val updatedState = state
       .modify(_.startup.isAtCreateConnection)
       .setTo(false)
       .modify(_.startup.createConnection)
       .setTo(CreateConnection.empty)
-    UpdateResult(updatedState, noCmd)
+    UpdateResult(updatedState)
   }
-
-  private def editConnection[Cmd](state: State, noCmd: Cmd): UpdateResult[Cmd] =
-    state.startup.selectedConnection.fold(UpdateResult(state, noCmd)) { conn =>
-      val updatedState = state
-        .modify(_.startup.isAtCreateConnection)
-        .setTo(true)
-        .modify(_.startup.createConnection)
-        .setTo(CreateConnection(isActive = false, ConnectionForm.fromConnection(conn), Some(state.startup.selectedIndex)))
-      UpdateResult(updatedState, noCmd)
-    }
 
   // Required-field checks shared by Save/Test/Connect; keeps any existing port error
   private def validate(form: ConnectionForm): Option[ValidationError] = {
@@ -63,65 +42,95 @@ object Update {
   private def withErrors(state: State, errors: ValidationError): State =
     state.modify(_.startup.createConnection.form.errors).setTo(Some(errors))
 
-  private def saveConnection[Cmd](state: State, noCmd: Cmd): UpdateResult[Cmd] = {
+  private[update] def persist(state: State): Effect =
+    Effect.SaveConnections(ConnectionStore.render(state.startup.connections))
+
+  private def saveConnection(state: State): UpdateResult = {
     val form = state.startup.createConnection.form
     validate(form) match {
-      case Some(errors) => UpdateResult(withErrors(state, errors), noCmd)
+      case Some(errors) => UpdateResult(withErrors(state, errors))
       case None         =>
-        // ponytail: in-memory only, persist to disk when connections must survive restarts
+        val editing       = state.startup.createConnection.editingIndex
+        val oldName       = editing.flatMap(state.startup.connections.lift).map(_.name)
         val newConnection = Connection(form.connectionName, ConnectionUrl.fromForm(form))
-        val updatedState  = state
+        // Passwords stay in memory for the session; the saved file never sees them
+        val passwords = oldName.fold(state.passwords)(state.passwords - _) ++
+          Option.when(form.password.nonEmpty)(form.connectionName -> form.password)
+        val updatedState = state
           .modify(_.startup.connections)
-          .using(cs => state.startup.createConnection.editingIndex.fold(cs :+ newConnection)(cs.updated(_, newConnection)))
+          .using(cs => editing.fold(cs :+ newConnection)(cs.updated(_, newConnection)))
           .modify(_.startup.isAtCreateConnection)
           .setTo(false)
           .modify(_.startup.createConnection)
           .setTo(CreateConnection.empty)
-        UpdateResult(updatedState, noCmd)
+          .copy(passwords = passwords)
+        UpdateResult(updatedState, List(persist(updatedState)))
     }
   }
 
-  private def testConnection[Cmd](state: State, noCmd: Cmd): UpdateResult[Cmd] = {
+  private def deleteConnection(state: State): UpdateResult =
+    state.startup.selectedConnection.fold(UpdateResult(state)) { conn =>
+      val updated = state.modify(_.startup).using(_.deleteSelected).copy(passwords = state.passwords - conn.name)
+      UpdateResult(updated, List(persist(updated)))
+    }
+
+  private def testConnection(state: State): UpdateResult = {
     val form = state.startup.createConnection.form
     validate(form) match {
-      case Some(errors) => UpdateResult(withErrors(state, errors), noCmd)
+      case Some(errors) => UpdateResult(withErrors(state, errors))
       case None         =>
-        val result = ConnectionTester.test(ConnectionUrl.fromForm(form)).fold(err => s"Failed: $err", _ => "Connection OK")
+        val conn  = Connection(form.connectionName, ConnectionUrl.fromForm(form))
+        val query = Effect.Query(conn, Option(form.password).filter(_.nonEmpty), "SELECT 1", Nil, Purpose.Test)
         val updatedState = state
           .modify(_.startup.createConnection.form)
-          .using(_.copy(errors = None, testResult = Some(result)))
-        UpdateResult(updatedState, noCmd)
+          .using(_.copy(errors = None, testResult = Some("Testing…")))
+        UpdateResult(updatedState, List(query))
     }
   }
 
-  // Save, then select the saved connection. No query screen exists yet, so connecting stops here.
-  private def connectConnection[Cmd](state: State, noCmd: Cmd): UpdateResult[Cmd] = {
-    val saved = saveConnection(state, noCmd)
+  // Save, then open the workspace on the saved connection
+  private def connectConnection(state: State): UpdateResult = {
+    val editing = state.startup.createConnection.editingIndex
+    val saved   = saveConnection(state)
     if (saved.state.startup.isAtCreateConnection) saved // validation failed
     else {
-      val index = state.startup.createConnection.editingIndex.getOrElse(saved.state.startup.connections.size - 1)
-      saved.copy(state = saved.state.modify(_.startup.selectedIndex).setTo(index))
+      val index    = editing.getOrElse(saved.state.startup.connections.size - 1)
+      val selected = saved.state.modify(_.startup.selectedIndex).setTo(index)
+      val opened   = WorkspaceUpdate.open(selected)
+      opened.copy(effects = saved.effects ++ opened.effects)
     }
   }
 
-  private def handleBackspace[Cmd](state: State, noCmd: Cmd): UpdateResult[Cmd] = {
+  private def editConnection(state: State): UpdateResult =
+    state.startup.selectedConnection.fold(UpdateResult(state)) { conn =>
+      val parsed = ConnectionForm.fromConnection(conn)
+      val form   = parsed.copy(auth = Some(Authentication(parsed.user, state.passwords.getOrElse(conn.name, ""))))
+      val updatedState = state
+        .modify(_.startup.isAtCreateConnection)
+        .setTo(true)
+        .modify(_.startup.createConnection)
+        .setTo(CreateConnection(isActive = false, form, Some(state.startup.selectedIndex)))
+      UpdateResult(updatedState)
+    }
+
+  private def handleBackspace(state: State): UpdateResult = {
     val form = state.startup.createConnection.form
     val currentValue = form.activeFieldValue
     if (currentValue.nonEmpty) {
       val newValue = currentValue.dropRight(1)
       val updatedForm = form.updateActiveField(newValue)
-      UpdateResult(state.modify(_.startup.createConnection.form).setTo(updatedForm), noCmd)
+      UpdateResult(state.modify(_.startup.createConnection.form).setTo(updatedForm))
     } else {
-      UpdateResult(state, noCmd)
+      UpdateResult(state)
     }
   }
 
-  private def createConnectionFormHandle[Cmd](state: State, msg: CreateConnectionForm, noCmd: Cmd): UpdateResult[Cmd] =
+  private def createConnectionFormHandle(state: State, msg: CreateConnectionForm): UpdateResult =
     msg match {
       case GoToNextField =>
-        UpdateResult(state.modify(_.startup.createConnection.form).using(_.cycleField), noCmd)
+        UpdateResult(state.modify(_.startup.createConnection.form).using(_.cycleField))
       case SelectDBMS(db) =>
-        UpdateResult(state.modify(_.startup.createConnection.form.db).setTo(db), noCmd)
+        UpdateResult(state.modify(_.startup.createConnection.form.db).setTo(db))
       case UpdateTextField(newValue) =>
         val form = state.startup.createConnection.form
         val updatedForm = if (form.activeField == 3 && newValue.toIntOption.isEmpty) {
@@ -129,25 +138,52 @@ object Update {
         } else {
           form.updateActiveField(newValue).copy(errors = form.errors.map(_.copy(port = None)))
         }
-        UpdateResult(state.modify(_.startup.createConnection.form).setTo(updatedForm), noCmd)
+        UpdateResult(state.modify(_.startup.createConnection.form).setTo(updatedForm))
     }
 
-  def update[Cmd](msg: Msg, state: State, noCmd: Cmd): UpdateResult[Cmd] = msg match {
+  private def prompt(msg: Msg, state: State): UpdateResult =
+    state.prompt.fold(UpdateResult(state)) { p =>
+      msg match {
+        case Msg.PromptInput(c)  => UpdateResult(state.copy(prompt = Some(p.copy(input = p.input :+ c))))
+        case Msg.PromptBackspace => UpdateResult(state.copy(prompt = Some(p.copy(input = p.input.dropRight(1)))))
+        case Msg.PromptSubmit    =>
+          val updated = state.copy(prompt = None, passwords = state.passwords + (p.connection -> p.input))
+          UpdateResult(updated, List(p.pending.copy(password = Option(p.input).filter(_.nonEmpty))))
+        case _ => UpdateResult(WorkspaceUpdate.cancelled(state.copy(prompt = None), p.pending.purpose))
+      }
+    }
+
+  def update(msg: Msg, state: State): UpdateResult = msg match {
     case startup: Startup =>
       startup match {
-        case EnterCreateConnection     => showCreateNewConnectionScreen(state, noCmd)
-        case CancelCreateConnection    => cancelCreateConnection(state, noCmd)
-        case SaveConnection            => saveConnection(state, noCmd)
-        case TestConnection            => testConnection(state, noCmd)
-        case ConnectConnection         => connectConnection(state, noCmd)
-        case msg: CreateConnectionForm => createConnectionFormHandle(state, msg, noCmd)
-        case CreateConnectionBackspace => handleBackspace(state, noCmd)
-        case EditConnection            => editConnection(state, noCmd)
-        case DeleteConnection          => UpdateResult(state.modify(_.startup).using(_.deleteSelected), noCmd)
-        case SelectNextConnection      => UpdateResult(state.modify(_.startup).using(_.selectNext), noCmd)
-        case SelectPrevConnection      => UpdateResult(state.modify(_.startup).using(_.selectPrev), noCmd)
-        case QuitApp                   => UpdateResult(state, noCmd) // Handled by layoutz layer
+        case EnterCreateConnection     => showCreateNewConnectionScreen(state)
+        case CancelCreateConnection    => cancelCreateConnection(state)
+        case SaveConnection            => saveConnection(state)
+        case TestConnection            => testConnection(state)
+        case ConnectConnection         => connectConnection(state)
+        case msg: CreateConnectionForm => createConnectionFormHandle(state, msg)
+        case CreateConnectionBackspace => handleBackspace(state)
+        case EditConnection            => editConnection(state)
+        case DeleteConnection          => deleteConnection(state)
+        case SelectNextConnection      => UpdateResult(state.modify(_.startup).using(_.selectNext))
+        case SelectPrevConnection      => UpdateResult(state.modify(_.startup).using(_.selectPrev))
+        case OpenWorkspace             => WorkspaceUpdate.open(state)
+        case QuitApp                   => UpdateResult(state) // Handled by layoutz layer
       }
-    case Msg.NoOp => UpdateResult(state, noCmd)
+    case w: WorkspaceMsg => WorkspaceUpdate.update(w, state)
+
+    case Msg.QueryDone(Purpose.Test, result) =>
+      val text = result.fold(e => s"Failed: $e", _ => "Connection OK")
+      UpdateResult(state.modify(_.startup.createConnection.form.testResult).setTo(Some(text)))
+    case Msg.QueryDone(purpose, result) => WorkspaceUpdate.queryDone(state, purpose, result)
+
+    case Msg.ConnectionsLoaded(Right(text)) =>
+      UpdateResult(state.modify(_.startup.connections).setTo(ConnectionStore.parse(text)))
+    case Msg.ConnectionsLoaded(Left(err)) => UpdateResult(state.copy(notice = Some(s"Could not read saved connections: $err")))
+    case Msg.ConnectionsSaved(Left(err))  => UpdateResult(state.copy(notice = Some(s"Could not save connections: $err")))
+    case Msg.ConnectionsSaved(Right(_))   => UpdateResult(state)
+
+    case Msg.PromptInput(_) | Msg.PromptBackspace | Msg.PromptSubmit | Msg.PromptCancel => prompt(msg, state)
+    case Msg.NoOp => UpdateResult(state)
   }
 }

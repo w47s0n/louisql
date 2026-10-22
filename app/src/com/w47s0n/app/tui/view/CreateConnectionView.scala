@@ -24,8 +24,12 @@ object CreateConnectionView {
       message(None, Danger),
       field("Host", form.host, "localhost", form.activeField == 2),
       message(errors.flatMap(_.host), Danger),
-      field("Port", form.port.toString, form.db.defaultPort.toString, form.activeField == 3),
+      field("Port", if (form.port == 0) "" else form.port.toString, form.db.defaultPort.toString, form.activeField == 3),
       message(errors.flatMap(_.port), Danger),
+      field("User", form.user, "root", form.activeField == 4),
+      field("Password", "•" * form.password.length, "asked when connecting if empty", form.activeField == 5),
+      field("Database", form.database, "optional, browse them all", form.activeField == 6),
+      line(Nil),
       message(form.testResult, if (form.testResult.exists(_.startsWith("Failed"))) Danger else Ok),
       statusBar(
         left = Nil,

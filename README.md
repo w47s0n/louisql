@@ -18,19 +18,24 @@ Interactive database client built with [layoutz](https://github.com/mattlianje/l
 
 ```
 scalasql/
-├── core/           # Pure ELM business logic (no UI dependencies)
-│   └── src/
-│       ├── Model.scala         # DbState, DbMsg
-│       ├── Update.scala        # Pure update functions
-│       └── DataGenerator.scala # Business logic
+├── core/           # Pure ELM logic: State, Msg, Update, Effect (no UI, no I/O)
+│   └── src/com/w47s0n/core/
+│       ├── state/      # State, connections form, Workspace tree, Editor
+│       ├── message/    # Msg
+│       ├── update/     # Update, WorkspaceUpdate (returns Effects, never runs them)
+│       ├── effect/     # Effect, QueryResult
+│       └── service/    # ConnectionStore (saved-connections file format)
 │
-└── app/            # Presentation layer (layoutz TUI)
-    └── src/
-        ├── DatabaseClientApp.scala  # Layoutz views
-        └── Main.scala               # Entry point
+├── app/            # layoutz TUI + the effects runner
+│   └── src/com/w47s0n/app/
+│       ├── Effects.scala   # runs core Effects as layoutz Cmds
+│       ├── db/MySql.scala  # MySQL via ldbc (pure Scala, JVM + Native)
+│       └── tui/            # views, key mapping, Main
+│
+└── native            # same sources, built with Scala Native
 ```
 
-The **core** module contains framework-agnostic ELM logic that can be shared across different presentation layers (layoutz TUI, Tyrian+Electron, etc.).
+The **core** module never touches the network or disk: `Update` returns `Effect`s, the app runs them and answers with `Msg`s.
 
 ## Running the App
 
@@ -75,10 +80,39 @@ mill -i --disable-ticker app.runLocal
 
 ## Features
 
-- **Interactive Query Input** - Type SQL queries with live cursor feedback
-- **Random Data Generation** - Returns mock table data for any query
-- **Beautiful Table Rendering** - Built-in layoutz table formatting
-- **Keyboard Controls** - Enter to execute, Backspace to delete
+Milestone 1: a DataGrip-style explorer and query console for **MySQL**.
+
+- **Connections** saved to `~/.config/scalasql/connections.tsv` without passwords; the password is asked once per session
+- **Explorer tree** loaded lazily: connection → schemas → tables / views → columns (type, PK)
+- **Query console**: multi-line editor; `^R` runs the `;`-separated statement under the cursor
+- **Result grid**: up to 1000 rows, NULLs dimmed, row/column scrolling, errors and affected-row counts shown in place
+
+### Keys
+
+| Where | Keys |
+|---|---|
+| Connections | `↑↓` choose · `⏎`/`c` connect · `n` new · `e` edit · `d` delete · `q` quit |
+| Form | `Tab`/`⏎` next field · `↑↓` engine · `^T` test · `^S` save · `^O` save and connect · `Esc` cancel |
+| Workspace | `Tab` next pane · `^R` run · `Esc` back to connections |
+| Explorer | `↑↓`/`jk` move · `→`/`l` expand · `←`/`h` collapse · `⏎` on a table = first 100 rows · `r` refresh |
+| Console | type · arrows · Home/End · `⏎` new line |
+| Result | `↑↓` rows · PgUp/PgDn page · `←→` columns |
+
+### Try it against a throwaway MySQL
+
+```bash
+docker run -d --name sq-mysql -p 13306:3306 -e MYSQL_ROOT_PASSWORD=root mysql:8.4
+# in the app: n → host 127.0.0.1, port 13306, user root → ^T → ^S → ⏎
+
+# integration tests against it
+SCALASQL_MYSQL=root:root@127.0.0.1:13306 mill app.test
+```
+
+### Native binary
+
+```bash
+mill native.nativeLink && ./out/native/nativeLink.dest/out
+```
 
 ## Build Commands
 

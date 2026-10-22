@@ -42,13 +42,17 @@ object Theme {
     Text(all.map(sgr(_, bg)).mkString)
   }
 
-  val rule: Element = line(Seq(Seg("─" * Width, Faint)))
+  def rule(w: Int = Width): Element = line(Seq(Seg("─" * w, Faint)), w = w)
 
-  def header(location: String): Element = layout(
-    line(Seq(Seg(" scalasql", bold = true), Seg(s"  ·  $location", Muted))),
-    rule,
-    line(Nil),
+  def header(location: String, w: Int = Width): Element = layout(
+    line(Seq(Seg(" scalasql", bold = true), Seg(s"  ·  $location", Muted)), w = w),
+    rule(w),
+    line(Nil, w = w),
   )
+
+  // Exactly h lines of w cells, so panes placed side by side stay aligned
+  def pane(lines: Seq[Element], w: Int, h: Int): Element =
+    layout((lines.take(h) ++ Seq.fill(h - lines.size)(line(Nil, w = w)))*)
 
   // Uppercase label with a right-aligned count, e.g. "CONNECTIONS        3"
   def sectionLabel(name: String, count: Int, w: Int): Element = {
@@ -61,11 +65,11 @@ object Theme {
 
   def keycap(key: String): Seg = Seg(s" $key ", Fg, Some(KeyBg))
 
-  def statusBar(left: Seq[Seg], hints: Seq[(String, String)], primary: Option[(String, String)] = None): Element = {
+  def statusBar(left: Seq[Seg], hints: Seq[(String, String)], primary: Option[(String, String)] = None, w: Int = Width): Element = {
     val hintSegs    = hints.flatMap((key, label) => Seq(keycap(key), Seg(s" $label  ", Muted)))
     val primarySegs = primary.toSeq.map((label, key) => Seg(s" $label $key ", Ink, Some(Accent), bold = true))
     val right       = hintSegs ++ primarySegs
-    val gap         = Width - (left ++ right).map(_.text.length).sum
-    layout(rule, line((left :+ Seg(" " * gap.max(1))) ++ right))
+    val gap         = w - (left ++ right).map(_.text.length).sum
+    layout(rule(w), line((left :+ Seg(" " * gap.max(1))) ++ right, w = w))
   }
 }

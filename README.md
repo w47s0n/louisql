@@ -45,7 +45,7 @@ macOS (Apple Silicon) and Linux (x86_64, arm64):
 curl -fsSL https://louisql.w47s0n.com/install.sh | bash
 ```
 
-Installs `louisql` to `~/.local/bin`; set `LOUISQL_INSTALL_DIR` to change that. Binaries come from GitHub Releases, built by `.github/workflows/release.yml` on every `v*` tag.
+Installs `louisql` to `~/.local/bin`; set `LOUISQL_INSTALL_DIR` to change that. `louisql update` installs the latest release in place, `louisql --version` shows the installed one. Binaries come from GitHub Releases, built by `.github/workflows/release.yml` on every `v*` tag.
 
 ## Running the App
 

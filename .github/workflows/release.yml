@@ -42,6 +42,8 @@ jobs:
       run: echo "OPENSSL_STATIC_LIB=$(brew --prefix openssl@3)/lib/libcrypto.a" >> "$GITHUB_ENV"
 
     - name: Build
+      env:
+        LOUISQL_VERSION: ${{ github.ref_name }}
       run: |
         ./mill --disable-ticker native.nativeLink
         cp out/native/nativeLink.dest/out "$BIN-${{ matrix.target }}"

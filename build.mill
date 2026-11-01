@@ -33,6 +33,19 @@ object app extends CommonModule {
     mvn"io.github.takapi327::ldbc-connector::0.8.0"
   )
 
+  // Release tag baked in by CI (LOUISQL_VERSION); local builds report "dev"
+  def version = Task.Input { Task.env.getOrElse("LOUISQL_VERSION", "dev") }
+  def generatedSources = Task {
+    os.write(
+      Task.dest / "Version.scala",
+      s"""package com.w47s0n.app
+         |
+         |object Version { val value = "${version()}" }
+         |""".stripMargin
+    )
+    Seq(PathRef(Task.dest))
+  }
+
   object test extends ScalaTests with TestModule.ScalaTest {
     def mvnDeps = Seq(
       mvn"org.scalatest::scalatest::3.2.20"
@@ -46,10 +59,12 @@ object native extends CommonModule with ScalaNativeModule {
   def scalaNativeVersion = "0.5.12"
   def sources            = Task { core.sources() ++ app.sources() }
   def mvnDeps            = Task { core.mvnDeps() ++ app.mvnDeps() }
+  def generatedSources   = Task { app.generatedSources() }
   def mainClass          = Some("com.w47s0n.app.tui.Main")
   // Release builds on macOS link libcrypto.a statically so the binary doesn't need Homebrew's openssl
+  def opensslStaticLib = Task.Input { Task.env.get("OPENSSL_STATIC_LIB") }
   def nativeLinkingOptions = Task {
     super.nativeLinkingOptions() ++
-      Task.env.get("OPENSSL_STATIC_LIB").toSeq.flatMap(lib => Seq(lib, "-Wl,-dead_strip_dylibs"))
+      opensslStaticLib().toSeq.flatMap(lib => Seq(lib, "-Wl,-dead_strip_dylibs"))
   }
 }

@@ -16,6 +16,9 @@ main() {
     x86_64 | amd64) arch=x86_64 ;;
     *) echo "Unsupported architecture: $(uname -m)" >&2; exit 1 ;;
   esac
+  if [ "$os-$arch" = darwin-x86_64 ]; then
+    echo "Intel Macs are not supported, only Apple Silicon" >&2; exit 1
+  fi
 
   dir="${LOUISQL_INSTALL_DIR:-$HOME/.local/bin}"
   url="https://github.com/$REPO/releases/latest/download/$BIN-$os-$arch"

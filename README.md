@@ -39,7 +39,7 @@ The **core** module never touches the network or disk: `Update` returns `Effect`
 
 ## Install
 
-macOS (arm64, x86_64) and Linux (x86_64, arm64):
+macOS (Apple Silicon) and Linux (x86_64, arm64):
 
 ```bash
 curl -fsSL https://louisql.w47s0n.com/install.sh | bash

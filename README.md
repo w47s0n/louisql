@@ -1,14 +1,14 @@
 # ScalaSQL
 ```scala
-                                     ░██                                  ░██ 
-                                     ░██                                  ░██ 
-     ░███████   ░███████   ░██████   ░██  ░██████    ░███████   ░████████ ░██ 
-    ░██        ░██    ░██       ░██  ░██       ░██  ░██        ░██    ░██ ░██ 
-     ░███████  ░██         ░███████  ░██  ░███████   ░███████  ░██    ░██ ░██ 
-           ░██ ░██    ░██ ░██   ░██  ░██ ░██   ░██         ░██ ░██   ░███ ░██ 
-     ░███████   ░███████   ░█████░██ ░██  ░█████░██  ░███████   ░█████░██ ░██ 
-                                                                      ░██     
-                                                                      ░██     
+     ░██                          ░██                          ░██ 
+     ░██                                                       ░██ 
+     ░██   ░███████   ░██    ░██  ░██   ░███████    ░████████  ░██ 
+     ░██  ░██    ░██  ░██    ░██  ░██  ░██         ░██    ░██  ░██ 
+     ░██  ░██    ░██  ░██    ░██  ░██   ░███████   ░██    ░██  ░██ 
+     ░██  ░██    ░██  ░██   ░███  ░██         ░██  ░██   ░███  ░██ 
+     ░██   ░███████    ░█████░██  ░██   ░███████    ░█████░██  ░██ 
+                                                          ░██      
+                                                          ░██      
 ```
 
 
@@ -36,6 +36,16 @@ scalasql/
 ```
 
 The **core** module never touches the network or disk: `Update` returns `Effect`s, the app runs them and answers with `Msg`s.
+
+## Install
+
+macOS (arm64, x86_64) and Linux (x86_64, arm64):
+
+```bash
+curl -fsSL https://louisql.w47s0n.com/install.sh | bash
+```
+
+Installs `louisql` to `~/.local/bin`; set `LOUISQL_INSTALL_DIR` to change that. Binaries come from GitHub Releases, built by `.github/workflows/release.yml` on every `v*` tag.
 
 ## Running the App
 

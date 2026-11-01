@@ -47,4 +47,9 @@ object native extends CommonModule with ScalaNativeModule {
   def sources            = Task { core.sources() ++ app.sources() }
   def mvnDeps            = Task { core.mvnDeps() ++ app.mvnDeps() }
   def mainClass          = Some("com.w47s0n.app.tui.Main")
+  // Release builds on macOS link libcrypto.a statically so the binary doesn't need Homebrew's openssl
+  def nativeLinkingOptions = Task {
+    super.nativeLinkingOptions() ++
+      Task.env.get("OPENSSL_STATIC_LIB").toSeq.flatMap(lib => Seq(lib, "-Wl,-dead_strip_dylibs"))
+  }
 }

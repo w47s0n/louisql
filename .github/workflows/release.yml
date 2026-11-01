@@ -1,0 +1,53 @@
+name: Release
+
+on:
+  push:
+    tags: [ 'v*' ]
+
+permissions:
+  contents: write
+
+env:
+  BIN: louisql
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - { runner: macos-latest,     target: darwin-arm64 }
+          - { runner: macos-15-intel,   target: darwin-x86_64 }
+          - { runner: ubuntu-latest,    target: linux-x86_64 }
+          - { runner: ubuntu-24.04-arm, target: linux-arm64 }
+    runs-on: ${{ matrix.runner }}
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: 17
+
+    - name: Install Mill
+      run: |
+        curl -fsSL -o mill https://repo1.maven.org/maven2/com/lihaoyi/mill-dist/1.1.10/mill-dist-1.1.10-mill.sh
+        chmod +x mill
+
+    - name: Native deps (Linux)
+      if: runner.os == 'Linux'
+      run: sudo apt-get update && sudo apt-get install -y clang libssl-dev
+
+    - name: Static libcrypto (macOS)
+      if: runner.os == 'macOS'
+      run: echo "OPENSSL_STATIC_LIB=$(brew --prefix openssl@3)/lib/libcrypto.a" >> "$GITHUB_ENV"
+
+    - name: Build
+      run: |
+        ./mill --disable-ticker native.nativeLink
+        cp out/native/nativeLink.dest/out "$BIN-${{ matrix.target }}"
+        if [ "$RUNNER_OS" = macOS ]; then otool -L "$BIN-${{ matrix.target }}"; else ldd "$BIN-${{ matrix.target }}"; fi
+
+    - uses: softprops/action-gh-release@v2
+      with:
+        files: ${{ env.BIN }}-${{ matrix.target }}
